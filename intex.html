@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>EMI குடும்பப் பதிவு</title>
+    <style>
+        *{box-sizing:border-box;font-family:system-ui,sans-serif;}
+        body{background:#f0f2f5;padding:16px;}
+        .container{max-width:1000px;margin:0 auto;}
+        .card{background:white;border-radius:24px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+        h1{font-size:1.6rem;margin:0 0 5px 0;color:#1e293b;}
+        h2{font-size:1.2rem;margin:0 0 15px 0;}
+        .badge{background:#dbeafe;color:#1e40af;padding:4px 12px;border-radius:20px;font-size:0.75rem;display:inline-block;}
+        .form-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:15px;}
+        .form-group{flex:1;min-width:130px;}
+        label{font-size:0.7rem;font-weight:600;display:block;margin-bottom:4px;color:#475569;}
+        input,select{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:20px;font-size:0.9rem;}
+        button{background:#3b82f6;color:white;border:none;padding:12px 20px;border-radius:40px;font-weight:bold;cursor:pointer;}
+        button.secondary{background:#475569;}
+        .total-bar{background:#eef2ff;padding:16px;border-radius:20px;margin-bottom:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-weight:bold;}
+        table{width:100%;border-collapse:collapse;}
+        th,td{padding:10px 6px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:0.8rem;}
+        th{background:#f8fafc;}
+        .income-row{background:#dcfce7;}
+        .delete-btn{background:#fee2e2;color:#b91c1c;padding:4px 10px;border-radius:20px;font-size:0.7rem;border:none;cursor:pointer;}
+        .footer{text-align:center;font-size:0.65rem;color:#64748b;margin-top:20px;}
+        @media (max-width:650px){th,td{font-size:0.7rem;padding:8px 4px;}}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>📊 EMI குடும்பப் பதிவு</h1>
+        <p><span class="badge">🇸🇬 சிங்கப்பூர் ⇄ 🇮🇳 இந்தியா</span></p>
+        <p>✅ வருமானம் & EMI ஒரே இடத்தில் | ✅ இருவருக்கும் ஒரே தரவு</p>
+    </div>
+
+    <div class="card">
+        <h2>➕ புதிய பதிவு</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>📌 வகை</label>
+                <select id="typeSelect">
+                    <option value="income">💰 வருமானம்</option>
+                    <option value="emi">🏦 EMI</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>📆 மாதம்</label>
+                <input type="text" id="month" placeholder="மே 2026" value="மே 2026">
+            </div>
+            <div class="form-group">
+                <label>📅 தேதி</label>
+                <input type="date" id="date">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>👤 பெயர் / வங்கி</label>
+                <input type="text" id="name" placeholder="RAJA / MALZAR / BAUN">
+            </div>
+            <div class="form-group">
+                <label>💰 தொகை (₹)</label>
+                <input type="number" id="amount" placeholder="0">
+            </div>
+            <div class="form-group">
+                <label>⏳ மீதி (EMI-க்கு)</label>
+                <input type="text" id="remain" placeholder="1 / 15 YEAR">
+            </div>
+        </div>
+        <div class="form-row">
+            <button id="saveBtn">💾 சேமி</button>
+            <button id="refreshBtn" class="secondary">🔄 புதுப்பிக்க</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="total-bar" id="totalBox">🔄 ஏற்றப்படுகிறது...</div>
+        <div style="overflow-x:auto;">
+            <table id="dataTable">
+                <thead><tr><th>வகை</th><th>மாதம்</th><th>தேதி</th><th>பெயர்/வங்கி</th><th>தொகை</th><th>மீதி</th><th></th></tr></thead>
+                <tbody id="tableBody"><tr><td colspan="7">📭 தரவு இல்லை</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="footer">🌐 நீங்களும் மனைவியும் ஒரே தரவைப் பார்க்கலாம்</div>
+</div>
+
+<script>
+    (function(){
+        const SUPABASE_URL = "https://onsnmatbyyvneobbnvmn.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9uc25tYXRieXl2bmVvYmJudm1uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMTAwOTksImV4cCI6MjA5MTU4NjA5OX0.4CxM9cdf6BY92QGOeyUIvoA3RGgwDeTrlNjcYJXiFjY";
+        
+        let supabaseClient = null;
+        let allData = [];
+        
+        function initSupabase() {
+            if(window.supabase && window.supabase.createClient) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            } else {
+                console.error("Supabase not loaded");
+            }
+        }
+        
+        async function loadData() {
+            if(!supabaseClient) return;
+            const { data, error } = await supabaseClient.from('emi_records').select('*').order('created_at', { ascending: false });
+            if(error) {
+                document.getElementById('tableBody').innerHTML = `<tr><td colspan="7">❌ ${error.message}</td></tr>`;
+                return;
+            }
+            allData = data || [];
+            renderTable();
+            calculateTotal();
+        }
+        
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            if(allData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7">📭 எந்த பதிவும் இல்லை</td></tr>';
+                return;
+            }
+            tbody.innerHTML = allData.map(row => `
+                <tr class="${row.type === 'income' ? 'income-row' : ''}">
+                    <td>${row.type === 'income' ? '💰 வருமானம்' : '🏦 EMI'}</td>
+                    <td>${row.month || ''}</td>
+                    <td>${row.date || ''}</td>
+                    <td>${row.name || ''}</td>
+                    <td>₹${(Number(row.amount) || 0).toLocaleString('en-IN')}</td>
+                    <td>${row.remain || '-'}</td>
+                    <td><button class="delete-btn" data-id="${row.id}">🗑️</button></td>
+                </tr>
+            `).join('');
+            
+            document.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    const id = btn.getAttribute('data-id');
+                    if(confirm("நீக்கவா?")) {
+                        await supabaseClient.from('emi_records').delete().eq('id', id);
+                        loadData();
+                    }
+                });
+            });
+        }
+        
+        async function calculateTotal() {
+            let totalIncome = 0, totalEMI = 0;
+            allData.forEach(row => {
+                const amt = Number(row.amount) || 0;
+                if(row.type === 'income') totalIncome += amt;
+                else if(row.type === 'emi') totalEMI += amt;
+            });
+            const balance = totalIncome - totalEMI;
+            const balanceText = balance >= 0 ? `✅ மிச்சம்: ₹${balance.toLocaleString('en-IN')}` : `⚠️ பற்றாக்குறை: ₹${Math.abs(balance).toLocaleString('en-IN')}`;
+            document.getElementById('totalBox').innerHTML = `
+                <span>💰 வருமானம்: ₹${totalIncome.toLocaleString('en-IN')}</span>
+                <span>🏦 EMI: ₹${totalEMI.toLocaleString('en-IN')}</span>
+                <span>${balanceText}</span>
+            `;
+        }
+        
+        async function saveRecord() {
+            const type = document.getElementById('typeSelect').value;
+            const month = document.getElementById('month').value;
+            const date = document.getElementById('date').value;
+            const name = document.getElementById('name').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const remain = document.getElementById('remain').value;
+            
+            if(!amount || isNaN(amount)) { alert("தொகையை உள்ளிடவும்"); return; }
+            if(!name) { alert("பெயர் உள்ளிடவும்"); return; }
+            
+            const newRecord = { type, month, date, name, amount, remain, bank: (type === 'emi' ? name : '') };
+            const { error } = await supabaseClient.from('emi_records').insert([newRecord]);
+            if(error) { alert("Error: " + error.message); return; }
+            alert("✅ சேமிக்கப்பட்டது!");
+            document.getElementById('amount').value = '';
+            document.getElementById('name').value = '';
+            document.getElementById('remain').value = '';
+            loadData();
+        }
+        
+        document.getElementById('saveBtn').addEventListener('click', saveRecord);
+        document.getElementById('refreshBtn').addEventListener('click', loadData);
+        
+        initSupabase();
+        loadData();
+    })();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</body>
+</html>
