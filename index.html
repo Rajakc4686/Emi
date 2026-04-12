@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMI KCR Tracker</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:Arial;background:#f0f2f5;padding:20px;}
+        .container{max-width:1000px;margin:auto;}
+        .card{background:white;border-radius:16px;padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
+        h1{font-size:24px;color:#1e293b;}
+        .btn{background:#3b82f6;color:white;border:none;padding:10px 20px;border-radius:25px;cursor:pointer;margin:5px;}
+        .btn-google{background:#4285f4;}
+        .btn-red{background:#ef4444;}
+        .btn-green{background:#10b981;}
+        input,select{width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:8px;}
+        table{width:100%;border-collapse:collapse;}
+        th,td{padding:10px;text-align:left;border-bottom:1px solid #ddd;}
+        th{background:#f8fafc;}
+        .income{background:#dcfce7;}
+        .total{background:#eef2ff;padding:15px;border-radius:12px;margin-bottom:20px;}
+        .tab{display:inline-block;padding:10px 20px;cursor:pointer;background:#e2e8f0;border-radius:10px 10px 0 0;}
+        .tab.active{background:#3b82f6;color:white;}
+        .tab-content{display:none;padding:20px 0;}
+        .tab-content.active{display:block;}
+        .user-info{float:right;font-size:12px;color:#64748b;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>📊 EMI KCR Tracker</h1>
+        <p>🇸🇬 சிங்கப்பூர் ⇄ 🇮🇳 இந்தியா | வருமானம் & EMI</p>
+        <div id="userStatus"></div>
+    </div>
+
+    <div class="card" id="appContent" style="display:none;">
+        <div>
+            <span class="tab active" data-tab="incomeTab">💰 வருமானம்</span>
+            <span class="tab" data-tab="emiTab">🏦 EMI</span>
+            <span class="tab" data-tab="summaryTab">📊 கணக்கீடு</span>
+        </div>
+
+        <!-- Income Tab -->
+        <div id="incomeTab" class="tab-content active">
+            <h3>💰 புதிய வருமானம்</h3>
+            <input type="text" id="incomeMonth" placeholder="மாதம் (மே 2026)" value="மே 2026">
+            <input type="date" id="incomeDate">
+            <input type="text" id="incomeName" placeholder="பெயர்">
+            <input type="number" id="incomeAmount" placeholder="தொகை (₹)">
+            <input type="text" id="incomeNote" placeholder="குறிப்பு">
+            <button class="btn" id="saveIncomeBtn">💾 வருமானம் சேமி</button>
+            <div class="total" id="incomeTotal">மொத்த வருமானம்: ₹0</div>
+            <table><thead><tr><th>மாதம்</th><th>தேதி</th><th>பெயர்</th><th>தொகை</th><th>குறிப்பு</th><th></th></tr></thead><tbody id="incomeList"></tbody></table>
+        </div>
+
+        <!-- EMI Tab -->
+        <div id="emiTab" class="tab-content">
+            <h3>🏦 புதிய EMI</h3>
+            <input type="text" id="emiMonth" placeholder="மாதம் (மே 2026)" value="மே 2026">
+            <input type="date" id="emiDate">
+            <input type="text" id="emiName" placeholder="வங்கி / பெயர்">
+            <input type="number" id="emiAmount" placeholder="தொகை (₹)">
+            <input type="text" id="emiRemain" placeholder="மீதி தவணைகள்">
+            <button class="btn" id="saveEmiBtn">💾 EMI சேமி</button>
+            <div class="total" id="emiTotal">மொத்த EMI: ₹0</div>
+            <table><thead><tr><th>மாதம்</th><th>தேதி</th><th>வங்கி</th><th>தொகை</th><th>மீதி</th><th></th></tr></thead><tbody id="emiList"></tbody></table>
+        </div>
+
+        <!-- Summary Tab -->
+        <div id="summaryTab" class="tab-content">
+            <h3>📊 மொத்த கணக்கீடு</h3>
+            <div class="total" id="summaryTotal"></div>
+            <button class="btn btn-green" id="downloadExcel">📎 Excel Download</button>
+            <button class="btn btn-red" id="downloadPdf">📄 PDF Download</button>
+            <table><thead><tr><th>வகை</th><th>மாதம்</th><th>தேதி</th><th>பெயர்</th><th>தொகை</th><th>மீதி</th></tr></thead><tbody id="summaryList"></tbody></table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ========== FIREBASE CONFIG ==========
+    const firebaseConfig = {
+        apiKey: "AIzaSyANH0pKcvh8Z_qjmm9sZuwkO36Q5nA8QVg",
+        authDomain: "emi-kcr-tracker.firebaseapp.com",
+        databaseURL: "https://emi-kcr-tracker-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "emi-kcr-tracker",
+        storageBucket: "emi-kcr-tracker.firebasestorage.app",
+        messagingSenderId: "307492672817",
+        appId: "1:307492672817:web:85a179d6d3ad2a6297cc10"
+    };
+    
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
+    
+    let allIncome = [];
+    let allEmi = [];
+    let currentUser = null;
+    
+    // Sign In
+    function signIn() {
+        auth.signInWithPopup(provider).then(result => {
+            currentUser = result.user;
+            document.getElementById('userStatus').innerHTML = '✅ ' + currentUser.email + ' <button class="btn-red" onclick="signOut()" style="padding:5px 10px;">வெளியேறு</button>';
+            document.getElementById('appContent').style.display = 'block';
+            loadData();
+        }).catch(error => alert("Sign in failed: " + error.message));
+    }
+    
+    function signOut() {
+        auth.signOut().then(() => {
+            currentUser = null;
+            document.getElementById('userStatus').innerHTML = '<button class="btn btn-google" onclick="signIn()">🔐 Google உள்நுழைவு</button>';
+            document.getElementById('appContent').style.display = 'none';
+        });
+    }
+    
+    // Load Data from Firebase
+    function loadData() {
+        if (!currentUser) return;
+        
+        database.ref('income_records').on('value', (snapshot) => {
+            allIncome = [];
+            const data = snapshot.val();
+            if (data) {
+                Object.keys(data).forEach(key => {
+                    allIncome.push({ id: key, ...data[key] });
+                });
+            }
+            renderIncome();
+        });
+        
+        database.ref('emi_records').on('value', (snapshot) => {
+            allEmi = [];
+            const data = snapshot.val();
+            if (data) {
+                Object.keys(data).forEach(key => {
+                    allEmi.push({ id: key, ...data[key] });
+                });
+            }
+            renderEmi();
+        });
+    }
+    
+    // Render Income
+    function renderIncome() {
+        let html = '';
+        let total = 0;
+        for (let row of allIncome) {
+            let amt = Number(row.amount) || 0;
+            total += amt;
+            html += `<tr>
+                        <td>${row.month || ''}</td>
+                        <td>${row.date || ''}</td>
+                        <td>${row.name || ''}</td>
+                        <td>₹${amt.toLocaleString('en-IN')}</td>
+                        <td>${row.note || ''}</td>
+                        <td><button onclick="deleteRecord('income_records','${row.id}')" style="background:#fee2e2;border:none;padding:5px 10px;border-radius:10px;">🗑️</button></td>
+                     </tr>`;
+        }
+        document.getElementById('incomeList').innerHTML = html || '<tr><td colspan="6">📭 வருமானம் இல்லை</td></tr>';
+        document.getElementById('incomeTotal').innerHTML = '💰 மொத்த வருமானம்: ₹' + total.toLocaleString('en-IN');
+        renderSummary();
+    }
+    
+    // Render EMI
+    function renderEmi() {
+        let html = '';
+        let total = 0;
+        for (let row of allEmi) {
+            let amt = Number(row.amount) || 0;
+            total += amt;
+            html += `<tr>
+                        <td>${row.month || ''}</td>
+                        <td>${row.date || ''}</td>
+                        <td>${row.name || ''}</td>
+                        <td>₹${amt.toLocaleString('en-IN')}</td>
+                        <td>${row.remain || '-'}</td>
+                        <td><button onclick="deleteRecord('emi_records','${row.id}')" style="background:#fee2e2;border:none;padding:5px 10px;border-radius:10px;">🗑️</button></td>
+                     </tr>`;
+        }
+        document.getElementById('emiList').innerHTML = html || '<tr><td colspan="6">📭 EMI இல்லை</td></tr>';
+        document.getElementById('emiTotal').innerHTML = '🏦 மொத்த EMI: ₹' + total.toLocaleString('en-IN');
+        renderSummary();
+    }
+    
+    // Delete Record
+    window.deleteRecord = async function(path, id) {
+        if (confirm('நீக்கவா?')) {
+            await database.ref(path + '/' + id).remove();
+        }
+    };
+    
+    // Render Summary
+    function renderSummary() {
+        let totalIncome = 0, totalEmi = 0;
+        for (let row of allIncome) totalIncome += Number(row.amount) || 0;
+        for (let row of allEmi) totalEmi += Number(row.amount) || 0;
+        let balance = totalIncome - totalEmi;
+        let balanceText = balance >= 0 ? '✅ மிச்சம்: ₹' + balance.toLocaleString('en-IN') : '⚠️ பற்றாக்குறை: ₹' + Math.abs(balance).toLocaleString('en-IN');
+        document.getElementById('summaryTotal').innerHTML = '💰 வருமானம்: ₹' + totalIncome.toLocaleString('en-IN') + ' | 🏦 EMI: ₹' + totalEmi.toLocaleString('en-IN') + ' | ' + balanceText;
+        
+        let html = '';
+        for (let row of allIncome) {
+            html += `<tr><td>💰 வருமானம்</td><td>${row.month || ''}</td><td>${row.date || ''}</td><td>${row.name || ''}</td><td>₹${(Number(row.amount)||0).toLocaleString('en-IN')}</td><td>-</td></tr>`;
+        }
+        for (let row of allEmi) {
+            html += `<tr><td>🏦 EMI</td><td>${row.month || ''}</td><td>${row.date || ''}</td><td>${row.name || ''}</td><td>₹${(Number(row.amount)||0).toLocaleString('en-IN')}</td><td>${row.remain || '-'}</td></tr>`;
+        }
+        document.getElementById('summaryList').innerHTML = html || '<tr><td colspan="6">📭 தரவு இல்லை</td></tr>';
+    }
+    
+    // Save Income
+    async function saveIncome() {
+        if (!currentUser) { alert("முதலில் உள்நுழையவும்"); return; }
+        let month = document.getElementById('incomeMonth').value;
+        let date = document.getElementById('incomeDate').value;
+        let name = document.getElementById('incomeName').value;
+        let amount = parseFloat(document.getElementById('incomeAmount').value);
+        let note = document.getElementById('incomeNote').value;
+        if (!amount || isNaN(amount)) { alert("தொகை சரியில்லை"); return; }
+        if (!name) { alert("பெயர் சரியில்லை"); return; }
+        await database.ref('income_records').push({ month, date, name, amount, note, timestamp: Date.now() });
+        alert("✅ வருமானம் சேமிக்கப்பட்டது!");
+        document.getElementById('incomeAmount').value = '';
+        document.getElementById('incomeName').value = '';
+        document.getElementById('incomeNote').value = '';
+    }
+    
+    // Save EMI
+    async function saveEmi() {
+        if (!currentUser) { alert("முதலில் உள்நுழையவும்"); return; }
+        let month = document.getElementById('emiMonth').value;
+        let date = document.getElementById('emiDate').value;
+        let name = document.getElementById('emiName').value;
+        let amount = parseFloat(document.getElementById('emiAmount').value);
+        let remain = document.getElementById('emiRemain').value;
+        if (!amount || isNaN(amount)) { alert("தொகை சரியில்லை"); return; }
+        if (!name) { alert("வங்கி பெயர் சரியில்லை"); return; }
+        await database.ref('emi_records').push({ month, date, name, amount, remain, timestamp: Date.now() });
+        alert("✅ EMI சேமிக்கப்பட்டது!");
+        document.getElementById('emiAmount').value = '';
+        document.getElementById('emiName').value = '';
+        document.getElementById('emiRemain').value = '';
+    }
+    
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.onclick = () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab).classList.add('active');
+        };
+    });
+    
+    // Event Listeners
+    document.getElementById('saveIncomeBtn').onclick = saveIncome;
+    document.getElementById('saveEmiBtn').onclick = saveEmi;
+    
+    // Check auth state
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            currentUser = user;
+            document.getElementById('userStatus').innerHTML = '✅ ' + currentUser.email + ' <button class="btn-red" onclick="signOut()" style="padding:5px 10px;">வெளியேறு</button>';
+            document.getElementById('appContent').style.display = 'block';
+            loadData();
+        } else {
+            document.getElementById('userStatus').innerHTML = '<button class="btn btn-google" onclick="signIn()">🔐 Google உள்நுழைவு</button>';
+            document.getElementById('appContent').style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
